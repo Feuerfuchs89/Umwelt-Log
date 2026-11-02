@@ -99,7 +99,7 @@ Hat ein übernommenes Gewässer den OSM-Tag `ele`, bietet der Editor an, ihn als
 Hinweise: Höhenraster werden als Uint16 (5-cm-Stufen) im Projekt gespeichert. Das DGM1 ist ein Geländemodell ohne Gebäude/Bäume; die Seetiefe ist darin nicht enthalten.
 
 ## Hinweis zum Öffnen
-Die App muss über https (GitHub Pages) oder als installierte PWA laufen. Aus dem Dateimanager (`content://`/`file://`) lassen sich `fauna.js` und der Service Worker nicht laden. Cache-Version: umwelt-log-v9.
+Die App muss über https (GitHub Pages) oder als installierte PWA laufen. Aus dem Dateimanager (`content://`/`file://`) lassen sich `fauna.js` und der Service Worker nicht laden. Cache-Version: umwelt-log-v10 (`sw.js` cached Hülle, Bibliotheken von unpkg und OSM-Kacheln, max. 600; Overpass nie).
 
 ## Probenauswertung (Schritt A1)
 Im Objekt-Panel einer Sichtung mit `sample_id`: vereinfachter Saprobienindex SI = Σ(sap·h)/Σh, Häufigkeitsgewicht h: 1→1, 2–5→3, 6–20→5, 21–100→7, >100→9; kein Indikatorgewicht; Imagines ohne Zeigerwert. Hinweis bei <3 Zeigertaxa bzw. <10 Individuen. Nur Feldorientierung, keine amtliche Gewässergüte.
@@ -130,3 +130,9 @@ Projekt → „Speicher prüfen“: Fotoanzahl/-größe im Projekt sowie App-Spe
 
 ## Marker-Clustering (Schritt E2)
 Ab 60 sichtbaren Erfassungspunkten (nach Filter) und bis Zoom 17 werden dicht beieinander liegende Pins (56-px-Raster) zu Sammelmarken mit Anzahl zusammengefasst; Tippen zoomt hinein. Gewählte Punkte bleiben einzeln. Reine Anzeige, Daten unverändert; ohne externe Bibliothek (offline). Schwellen: Konstanten `CL_MIN`, `CL_PX`, `CL_ZMAX`. Nur Logik getestet, nicht mit echten Datenmengen auf dem Handy.
+
+## Gewässernetz Sachsen (Etappe 1)
+Panel „Gewässernetz Sachsen (offline)“: lädt Flüsse und Kanäle (optional Bäche) aus OSM in Kacheln à 0,4° × 0,25° (ca. 28 × 28 km) und speichert sie in IndexedDB (Store `net`, DB-Version 3). Vor dem Start steht eine grobe Datenschätzung (nicht gemessen), danach der tatsächliche Verbrauch. Stopp per erneutem Tippen; fertige Kacheln bleiben. Anzeige als Linien (Bäche ab Zoom 12), Name per Tooltip. Nur Logik geprüft, nicht mit echtem Download getestet. Nächste Etappen: Projektionswahl (UTM32/33), weitere Bundesländer, Küste/Nord- und Ostsee.
+
+## Bäume Sachsen (Etappe 1b)
+Knopf „🌳 Bäume Sachsen laden (OSM)“: OSM-Knoten `natural=tree` in 208 Kacheln (0,2° × 0,125°), gespeichert mit Art, Umfang, Höhe, Pflanzjahr (soweit in OSM vorhanden; lückenhaft, kein Kataster). Anzeige ab Zoom 15, max. 4000 Punkte im Ausschnitt. Datenmenge unbekannt: nach 5 Kacheln erscheint eine Hochrechnung. Städtische Kataster (z. B. Leipzig) bleiben separat. Nur Logik geprüft, nicht mit echtem Download getestet.
