@@ -183,10 +183,12 @@ dialog::backdrop{background:rgba(0,0,0,.55)}dialog h3{margin:0 0 6px;font:800 20
  <div class="row"><button class="v" id="depthEst">Tiefe aus Ufer-Abstand schätzen</button></div>
  <div class="dim">Tiefe = Abstand zum Ufer × Neigung, begrenzt auf die Maximaltiefe. Reine Näherung für Seen ohne Lotungen; klar als Schätzung markiert. Tiefenlinien mit Tiefenwert haben Vorrang.</div></details>
    <details><summary>Gewässernetz Sachsen (offline)</summary>
- <div class="row"><button class="v pri" id="netGet">Sachsen laden</button></div>
+ <label class="f"><input type="checkbox" id="netView" checked> nur sichtbaren Kartenausschnitt laden (spart Daten)</label>
+ <div class="row"><button class="v pri" id="netGet">Gewässer laden</button></div>
  <label class="f"><input type="checkbox" id="netStr"> auch Bäche (deutlich mehr Daten)</label>
  <div class="row"><button class="v" id="pgGet">📈 Pegel Sachsen (WSV)</button></div>
- <div class="row"><button class="v" id="trGet">🌳 Bäume Sachsen laden (OSM)</button></div>
+ <div id="pgList"></div>
+ <div class="row"><button class="v" id="trGet">🌳 Bäume laden (OSM)</button></div>
  <div class="row"><button class="v" id="netTog">Anzeige an/aus</button><button class="v" id="netClr">Löschen</button></div>
  <div class="dim" id="netInfo"></div>
  <div class="dim">Flüsse und Kanäle aus OpenStreetMap (ODbL), kachelweise offline im Browser gespeichert. Bäche erst ab Zoom 12, Bäume ab Zoom 15, Fließrichtungs-Pfeile (Flüsse/Bäche, nach OSM-Zeichenrichtung) ab Zoom 13 sichtbar. Pegel brauchen Internet. „Löschen“ entfernt Gewässer und Bäume. Weitere Bundesländer folgen in Etappen.</div>
@@ -759,10 +761,11 @@ function netDraw(){NET.lay.clearLayers();trDraw();if(!NET.on||!NET.mem.size)retu
 function netArrow(c,z){const i=Math.max(0,Math.min(c.length-2,Math.floor(c.length/2))),A=map.project([c[i][1],c[i][0]],z),B=map.project([c[i+1][1],c[i+1][0]],z),dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy);if(len<10)return 0;
  const ux=dx/len,uy=dy/len,mx=(A.x+B.x)/2,my=(A.y+B.y)/2,S=7,P=pt=>map.unproject(pt,z);
  L.polygon([P(L.point(mx+ux*S,my+uy*S)),P(L.point(mx-ux*S-uy*S*.6,my-uy*S+ux*S*.6)),P(L.point(mx-ux*S+uy*S*.6,my-uy*S-ux*S*.6))],{renderer:NET.cv,color:'#01579b',weight:1,fillColor:'#e1f5fe',fillOpacity:1,interactive:false}).addTo(NET.lay);return 1}
+const inView=t=>!$('#netView').checked||map.getBounds().intersects(L.latLngBounds([t.b[0],t.b[1]],[t.b[2],t.b[3]]));
 async function netGet(){if(NET.busy){NET.stop=true;return}
- const full=$('#netStr').checked,T=netTiles().filter(t=>!NET.mem.has(t.k)||(full&&!NET.mem.get(t.k).str));
+ const full=$('#netStr').checked,T=netTiles().filter(inView).filter(t=>!NET.mem.has(t.k)||(full&&!NET.mem.get(t.k).str));
  if(!T.length)return msg('Alle Kacheln für diese Auswahl sind schon geladen.');
- if(!confirm(`Sachsen: ${T.length} Kacheln (je ca. 28×28 km) laden.\nGeschätzt ${(T.length*(full?2:.4)).toFixed(0)} MB Datenverbrauch (grobe Schätzung, nicht gemessen), WLAN empfohlen.\nStopp jederzeit durch erneutes Tippen; fertige Kacheln bleiben gespeichert.\nQuelle: OpenStreetMap (ODbL).`))return;
+ if(!confirm(`${$('#netView').checked?'Kartenausschnitt':'Ganz Sachsen'}: ${T.length} Kacheln (je ca. 28×28 km) laden.\nGeschätzt ${(T.length*(full?2:.4)).toFixed(0)} MB Datenverbrauch (grobe Schätzung, nicht gemessen), WLAN empfohlen.\nStopp jederzeit durch erneutes Tippen; fertige Kacheln bleiben gespeichert.\nQuelle: OpenStreetMap (ODbL).`))return;
  NET.busy=true;NET.stop=false;$('#netGet').textContent='⏹ Stopp';let mb=0,n=0;try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(_){}
  try{for(const t of T){if(NET.stop)break;const bb=t.b.join(',');
   const d=await ovp(`[out:json][timeout:90];way["waterway"~"^(${full?'river|canal|stream':'river|canal'})$"](${bb});out geom tags;`);
@@ -771,8 +774,10 @@ async function netGet(){if(NET.busy){NET.stop=true;return}
   await netDb('readwrite',st=>st.put(rec,t.k));NET.mem.set(t.k,rec);mb+=rec.kb/1024;n++;msg(`Kachel ${n}/${T.length} · ${mb.toFixed(1)} MB gespeichert`);netInfo();netDraw()}
   msg(NET.stop?`Gestoppt nach ${n} Kacheln (${mb.toFixed(1)} MB).`:`Fertig: ${n} Kacheln, ${mb.toFixed(1)} MB.`)}
  catch(e){msg('Abbruch: '+e.message+' – geladene Kacheln bleiben erhalten.',true)}
- finally{NET.busy=false;$('#netGet').textContent='Sachsen laden'}}
-$('#netGet').onclick=netGet;$('#netTog').onclick=()=>{NET.on=!NET.on;netDraw();msg('Gewässernetz '+(NET.on?'sichtbar':'ausgeblendet'))};
+ finally{NET.busy=false;$('#netGet').textContent='Gewässer laden'}}
+$('#netGet').onclick=netGet;$('#netTog').onclick=()=>{NET.on=!NET.on;netDraw();NET.on?PG.lay.addTo(map):map.removeLayer(PG.lay);
+ const have=netTiles().some(t=>NET.mem.has(t.k)&&inViewAlways(t));msg('Gewässer, Bäume und Pegel '+(NET.on?'sichtbar':'ausgeblendet')+(NET.on&&!have?' – im Ausschnitt sind aber noch keine Gewässerdaten geladen („Gewässer laden“).':''),NET.on&&!have)};
+const inViewAlways=t=>map.getBounds().intersects(L.latLngBounds([t.b[0],t.b[1]],[t.b[2],t.b[3]]));
 $('#netClr').onclick=async()=>{if(NET.busy||!NET.mem.size||!confirm('Gespeichertes Gewässernetz löschen?'))return;await netDb('readwrite',st=>st.clear());NET.mem.clear();netInfo();netDraw()};
 map.on('moveend',netDraw);netLoad().catch(()=>{});
 /* ---------- Bäume Sachsen (Etappe 1b): OSM natural=tree, Kacheln 0,2° × 0,125° (ca. 14 × 14 km), Schlüssel 'tr:' im Store 'net' ---------- */
@@ -784,8 +789,8 @@ function trDraw(){trLay.clearLayers();if(!NET.on||map.getZoom()<15)return;const 
   const tx=[f[3]||'Baum (Art unbekannt)',f[4]?'Umfang '+f[4]+' cm':'',f[5]?'Höhe '+f[5]+' m':'',f[6]?'seit '+f[6]:''].filter(Boolean).join(' · ');m.bindTooltip(tx);m.addTo(trLay)}});
  if(n>=4000)msg('Nur 4000 Bäume angezeigt – weiter hineinzoomen.')}
 async function trGet(){if(NET.busy){NET.stop=true;return}
- const T=trTiles().filter(t=>!NET.mem.has(t.k));if(!T.length)return msg('Alle Baumkacheln sind schon geladen.');
- if(!confirm(`Bäume Sachsen: ${T.length} Kacheln (je ca. 14×14 km) laden.\nDatenmenge unbekannt: hängt von der OSM-Dichte ab (Städte viele, Land wenige). Ich messe sie nach den ersten Kacheln, WLAN empfohlen.\nOSM-Bäume sind lückenhaft, ohne Kataster-Vollständigkeit.\nStopp jederzeit durch erneutes Tippen.`))return;
+ const T=trTiles().filter(inView).filter(t=>!NET.mem.has(t.k));if(!T.length)return msg('Alle Baumkacheln sind schon geladen.');
+ if(!confirm(`Bäume (${$('#netView').checked?'Kartenausschnitt':'ganz Sachsen'}): ${T.length} Kacheln (je ca. 14×14 km) laden.\nDatenmenge unbekannt: hängt von der OSM-Dichte ab (Städte viele, Land wenige). Ich messe sie nach den ersten Kacheln, WLAN empfohlen.\nOSM-Bäume sind lückenhaft, ohne Kataster-Vollständigkeit.\nStopp jederzeit durch erneutes Tippen.`))return;
  NET.busy=true;NET.stop=false;$('#trGet').textContent='⏹ Stopp';let mb=0,n=0,cnt=0;try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(_){}
  try{for(const t of T){if(NET.stop)break;
   const d=await ovp(`[out:json][timeout:90];node["natural"="tree"](${t.b.join(',')});out;`);
@@ -795,19 +800,22 @@ async function trGet(){if(NET.busy){NET.stop=true;return}
   msg(`Kachel ${n}/${T.length} · ${cnt.toLocaleString('de')} Bäume · ${mb.toFixed(1)} MB`+(n===5?` · Hochrechnung gesamt ca. ${(mb/n*T.length).toFixed(0)} MB`:''));netInfo();trDraw()}
   msg(NET.stop?`Gestoppt nach ${n} Kacheln (${mb.toFixed(1)} MB).`:`Fertig: ${n} Kacheln, ${cnt.toLocaleString('de')} Bäume, ${mb.toFixed(1)} MB.`)}
  catch(e){msg('Abbruch: '+e.message+' – geladene Kacheln bleiben erhalten.',true)}
- finally{NET.busy=false;$('#trGet').textContent='🌳 Bäume Sachsen laden (OSM)'}}
+ finally{NET.busy=false;$('#trGet').textContent='🌳 Bäume laden (OSM)'}}
 $('#trGet').onclick=trGet;netInfo();
 /* ---------- Pegel (Etappe 2a): aktuelle Werte W/Q der WSV (PEGELONLINE), gefiltert auf Sachsen. Live, nicht gespeichert ---------- */
-const PG={lay:L.layerGroup().addTo(map),n:0};
+const PG={lay:L.layerGroup().addTo(map),n:0,items:[]};
 async function pgGet(){msg('Lade Pegel (WSV) …');
  try{const r=await fetch('https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json?includeTimeseries=true&includeCurrentMeasurement=true');if(!r.ok)throw Error('HTTP '+r.status);
-  const d=await r.json(),a=NET.SN,E=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));PG.lay.clearLayers();PG.n=0;
+  const d=await r.json(),a=NET.SN,E=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));PG.lay.clearLayers();PG.n=0;PG.items=[];
   d.filter(s=>s.latitude>=a.s&&s.latitude<=a.n&&s.longitude>=a.w&&s.longitude<=a.e).forEach(s=>{
    const M={};(s.timeseries||[]).forEach(t=>{if(t.currentMeasurement)M[t.shortname]={u:t.unit,...t.currentMeasurement}});
    const row=(k,n)=>{const m=M[k];return m?`${n}: <b>${E(m.value)} ${E(m.unit||m.u)}</b> ${m.trend>0?'↑ steigend':m.trend<0?'↓ fallend':m.trend===0?'→ gleich':''}<br><small>${E(new Date(m.timestamp).toLocaleString('de'))}</small><br>`:`${n}: –<br>`};
-   L.circleMarker([s.latitude,s.longitude],{renderer:NET.cv,radius:8,color:'#0d47a1',weight:2,fillColor:'#42a5f5',fillOpacity:.9}).bindPopup(`<b>${E(s.longname||s.shortname)}</b><br>${E(s.water&&s.water.longname||'')}${s.km!=null?' · km '+E(s.km):''}<br>${row('W','Wasserstand')}${row('Q','Abfluss')}`).addTo(PG.lay);PG.n++});
+   const mk=L.circleMarker([s.latitude,s.longitude],{renderer:NET.cv,radius:8,color:'#0d47a1',weight:2,fillColor:'#42a5f5',fillOpacity:.9}).bindPopup(`<b>${E(s.longname||s.shortname)}</b><br>${E(s.water&&s.water.longname||'')}${s.km!=null?' · km '+E(s.km):''}<br>${row('W','Wasserstand')}${row('Q','Abfluss')}`).addTo(PG.lay);PG.n++;PG.items.push({mk,s,M})});pgList();
   msg(PG.n?`${PG.n} Pegel in Sachsen geladen (Bundeswasserstraßen). Tippe auf einen Punkt.`:'Keine WSV-Pegel in Sachsen gefunden.',!PG.n)}
  catch(e){msg('Pegel nicht ladbar: '+e.message+' (Internet oder Browser-Sperre?)',true)}}
+function pgList(){const o=$('#pgList');o.textContent='';const wn=x=>x.s.water&&x.s.water.longname||'';
+ PG.items.sort((a,b)=>wn(a).localeCompare(wn(b))||(a.s.km||0)-(b.s.km||0)).forEach(it=>{const b=document.createElement('button'),W=it.M.W,Q=it.M.Q;b.className='v';b.style.cssText='display:block;width:100%;text-align:left;margin:2px 0';
+  b.textContent=`${it.s.longname||it.s.shortname} (${wn(it)}): W ${W?W.value+' '+(W.u||''):'–'} · Q ${Q?Q.value+' '+(Q.u||''):'–'}`;b.onclick=()=>{map.setView(it.mk.getLatLng(),Math.max(map.getZoom(),13));it.mk.openPopup()};o.appendChild(b)})}
 $('#pgGet').onclick=pgGet;
 
 

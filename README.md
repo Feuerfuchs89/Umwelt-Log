@@ -99,7 +99,7 @@ Hat ein übernommenes Gewässer den OSM-Tag `ele`, bietet der Editor an, ihn als
 Hinweise: Höhenraster werden als Uint16 (5-cm-Stufen) im Projekt gespeichert. Das DGM1 ist ein Geländemodell ohne Gebäude/Bäume; die Seetiefe ist darin nicht enthalten.
 
 ## Hinweis zum Öffnen
-Die App muss über https (GitHub Pages) oder als installierte PWA laufen. Aus dem Dateimanager (`content://`/`file://`) lassen sich `fauna.js` und der Service Worker nicht laden. Cache-Version: umwelt-log-v11 (`sw.js` cached Hülle, Bibliotheken von unpkg und OSM-Kacheln, max. 600; Overpass nie).
+Die App muss über https (GitHub Pages) oder als installierte PWA laufen. Aus dem Dateimanager (`content://`/`file://`) lassen sich `fauna.js` und der Service Worker nicht laden. Cache-Version: umwelt-log-v12 (`sw.js` cached Hülle, Bibliotheken von unpkg und OSM-Kacheln, max. 600; Overpass nie).
 
 ## Probenauswertung (Schritt A1)
 Im Objekt-Panel einer Sichtung mit `sample_id`: vereinfachter Saprobienindex SI = Σ(sap·h)/Σh, Häufigkeitsgewicht h: 1→1, 2–5→3, 6–20→5, 21–100→7, >100→9; kein Indikatorgewicht; Imagines ohne Zeigerwert. Hinweis bei <3 Zeigertaxa bzw. <10 Individuen. Nur Feldorientierung, keine amtliche Gewässergüte.
@@ -143,3 +143,6 @@ Tab „Daten“ → „Gewässernetz Sachsen (offline)“. Erst „Sachsen laden
 ## Pegel und Fließrichtung (Etappe 2a)
 - Fließrichtung: Pfeile ab Zoom 13 auf Flüssen/Bächen, abgeleitet aus der OSM-Zeichenrichtung (OSM-Konvention: Linie läuft flussabwärts). Für Kanäle werden keine Pfeile gezeichnet, weil die Richtung dort nicht verlässlich ist; einzelne Linien können in OSM falsch herum liegen.
 - Pegel: Knopf „📈 Pegel Sachsen (WSV)“ holt live Wasserstand (W) und Abfluss (Q) aller WSV-Pegel in Sachsen (PEGELONLINE, nur Bundeswasserstraßen, z. B. Elbe). Nicht gespeichert, braucht Internet. Landespegel (LfULG/LHWZ) sind noch nicht angebunden: dafür habe ich keine gesicherte, offene Schnittstelle gefunden.
+
+## Ausschnitt laden, Pegel-Liste (Etappe 2b)
+Haken „nur sichtbaren Kartenausschnitt laden“ (Standard an): Gewässer und Bäume laden nur die Kacheln, die den aktuellen Kartenausschnitt berühren. „Anzeige an/aus“ schaltet jetzt Gewässer, Bäume und Pegel gemeinsam. Nach „📈 Pegel Sachsen (WSV)“ steht unter dem Knopf eine Liste mit Wasserstand (W) und Abfluss (Q); Tippen auf einen Eintrag springt zum Pegel und öffnet die Details.
