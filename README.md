@@ -99,7 +99,7 @@ Hat ein übernommenes Gewässer den OSM-Tag `ele`, bietet der Editor an, ihn als
 Hinweise: Höhenraster werden als Uint16 (5-cm-Stufen) im Projekt gespeichert. Das DGM1 ist ein Geländemodell ohne Gebäude/Bäume; die Seetiefe ist darin nicht enthalten.
 
 ## Hinweis zum Öffnen
-Die App muss über https (GitHub Pages) oder als installierte PWA laufen. Aus dem Dateimanager (`content://`/`file://`) lassen sich `fauna.js` und der Service Worker nicht laden. Cache-Version: umwelt-log-v10 (`sw.js` cached Hülle, Bibliotheken von unpkg und OSM-Kacheln, max. 600; Overpass nie).
+Die App muss über https (GitHub Pages) oder als installierte PWA laufen. Aus dem Dateimanager (`content://`/`file://`) lassen sich `fauna.js` und der Service Worker nicht laden. Cache-Version: umwelt-log-v11 (`sw.js` cached Hülle, Bibliotheken von unpkg und OSM-Kacheln, max. 600; Overpass nie).
 
 ## Probenauswertung (Schritt A1)
 Im Objekt-Panel einer Sichtung mit `sample_id`: vereinfachter Saprobienindex SI = Σ(sap·h)/Σh, Häufigkeitsgewicht h: 1→1, 2–5→3, 6–20→5, 21–100→7, >100→9; kein Indikatorgewicht; Imagines ohne Zeigerwert. Hinweis bei <3 Zeigertaxa bzw. <10 Individuen. Nur Feldorientierung, keine amtliche Gewässergüte.
@@ -136,3 +136,10 @@ Panel „Gewässernetz Sachsen (offline)“: lädt Flüsse und Kanäle (optional
 
 ## Bäume Sachsen (Etappe 1b)
 Knopf „🌳 Bäume Sachsen laden (OSM)“: OSM-Knoten `natural=tree` in 208 Kacheln (0,2° × 0,125°), gespeichert mit Art, Umfang, Höhe, Pflanzjahr (soweit in OSM vorhanden; lückenhaft, kein Kataster). Anzeige ab Zoom 15, max. 4000 Punkte im Ausschnitt. Datenmenge unbekannt: nach 5 Kacheln erscheint eine Hochrechnung. Städtische Kataster (z. B. Leipzig) bleiben separat. Nur Logik geprüft, nicht mit echtem Download getestet.
+
+## Mit dem Gewässernetz arbeiten
+Tab „Daten“ → „Gewässernetz Sachsen (offline)“. Erst „Sachsen laden“ (am besten im WLAN), danach liegen die Linien offline im Browser. Enthalten: OSM-Linien `waterway=river|canal` (optional `stream`) mit Name, aber ohne Breite, Tiefe, Fließrichtung oder Wasserqualität; keine Seen/Flächen, keine Gräben. Bäume: nur Punkte aus OSM mit Art, Umfang, Höhe, Pflanzjahr, soweit eingetragen. Das Netz ist eine Anzeigeebene mit Namens-Tooltip beim Antippen; es wird nicht in Projektdateien gespeichert und nicht mit exportiert. „Löschen“ entfernt Gewässer und Bäume.
+
+## Pegel und Fließrichtung (Etappe 2a)
+- Fließrichtung: Pfeile ab Zoom 13 auf Flüssen/Bächen, abgeleitet aus der OSM-Zeichenrichtung (OSM-Konvention: Linie läuft flussabwärts). Für Kanäle werden keine Pfeile gezeichnet, weil die Richtung dort nicht verlässlich ist; einzelne Linien können in OSM falsch herum liegen.
+- Pegel: Knopf „📈 Pegel Sachsen (WSV)“ holt live Wasserstand (W) und Abfluss (Q) aller WSV-Pegel in Sachsen (PEGELONLINE, nur Bundeswasserstraßen, z. B. Elbe). Nicht gespeichert, braucht Internet. Landespegel (LfULG/LHWZ) sind noch nicht angebunden: dafür habe ich keine gesicherte, offene Schnittstelle gefunden.

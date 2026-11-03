@@ -185,10 +185,11 @@ dialog::backdrop{background:rgba(0,0,0,.55)}dialog h3{margin:0 0 6px;font:800 20
    <details><summary>Gewässernetz Sachsen (offline)</summary>
  <div class="row"><button class="v pri" id="netGet">Sachsen laden</button></div>
  <label class="f"><input type="checkbox" id="netStr"> auch Bäche (deutlich mehr Daten)</label>
+ <div class="row"><button class="v" id="pgGet">📈 Pegel Sachsen (WSV)</button></div>
  <div class="row"><button class="v" id="trGet">🌳 Bäume Sachsen laden (OSM)</button></div>
  <div class="row"><button class="v" id="netTog">Anzeige an/aus</button><button class="v" id="netClr">Löschen</button></div>
  <div class="dim" id="netInfo"></div>
- <div class="dim">Flüsse und Kanäle aus OpenStreetMap (ODbL), kachelweise offline im Browser gespeichert. Bäche erst ab Zoom 12, Bäume ab Zoom 15 sichtbar. „Löschen“ entfernt Gewässer und Bäume. Weitere Bundesländer folgen in Etappen.</div>
+ <div class="dim">Flüsse und Kanäle aus OpenStreetMap (ODbL), kachelweise offline im Browser gespeichert. Bäche erst ab Zoom 12, Bäume ab Zoom 15, Fließrichtungs-Pfeile (Flüsse/Bäche, nach OSM-Zeichenrichtung) ab Zoom 13 sichtbar. Pegel brauchen Internet. „Löschen“ entfernt Gewässer und Bäume. Weitere Bundesländer folgen in Etappen.</div>
 </details>
    <details><summary>Umgebung &amp; Gelände</summary>
  <div class="row"><button class="v pri" id="envLoad">Umgebung 1 km laden (OSM)</button></div>
@@ -352,7 +353,7 @@ const undo=()=>{if(hi>0)restore(hist[--hi])},redo=()=>{if(hi<hist.length-1)resto
 /* ---------- GeoJSON-Import (Validierung) ---------- */
 function addFC(d){if(!d||typeof d!=='object')throw Error('Keine gültige GeoJSON-Datei');
  if(d.type==='Feature')d={type:'FeatureCollection',features:[d]};else if(d.coordinates&&d.type)d={type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:d}]};
- if(d.type!=='FeatureCollection'||!Array.isArray(d.features))throw Error('Erwartet FeatureCollection');
+ if(d.type!=='FeatureCollection'||!Array.isArray(d.features))throw Error('Erwartet FeatureCollection (GeoJSON). Projektdateien dieses Editors bitte über „Projekt laden“ öffnen, andere Formate werden nicht unterstützt');
  if(!d.features.length)throw Error('Datei enthält keine Objekte');
  let n=0;const gj=L.geoJSON(d,{pointToLayer:(f,ll)=>L.marker(ll)});
  gj.eachLayer(l=>{if(l instanceof L.Marker||l instanceof L.Polyline){adopt(l,{...(l.feature.properties||{})});n++}});
@@ -579,7 +580,7 @@ function gpx(){const x=s=>String(s??'').replace(/[<>&"']/g,c=>({'<':'&lt;','>':'
 const fileIn=$('#file');let fileMode='';
 fileIn.onchange=async()=>{const f=fileIn.files[0];fileIn.value='';if(!f)return;
  try{const txt=await f.text();let d;if(/^\s*</.test(txt))d=xmlToFC(txt,f.name);else try{d=JSON.parse(txt)}catch(_){throw Error('Datei ist weder GeoJSON noch GPX/KML')}
-  if(fileMode==='proj'){const w=applyProject(d);hist=[];hi=-1;commit();w.push(...await photosAfterLoad(d));msg(w.length?'Geladen, aber: '+w.join('; '):`Projekt „${PROJ.name}“ vollständig geladen (${all().length} Objekte${M.g?', Höhenraster':''}${ENV.fc?', Umgebung':''})`,w.length>0);return}
+  if((d&&d.format==='seeeditor-1')||(fileMode==='proj'&&!(d&&(d.type==='FeatureCollection'||d.type==='Feature')))){const w=applyProject(d);hist=[];hi=-1;commit();w.push(...await photosAfterLoad(d));msg(w.length?'Geladen, aber: '+w.join('; '):`Projekt „${PROJ.name}“ vollständig geladen (${all().length} Objekte${M.g?', Höhenraster':''}${ENV.fc?', Umgebung':''})`,w.length>0);return}
   addFC(d);commit();msg('Import erfolgreich')}catch(e){msg('Import fehlgeschlagen: '+e.message,true)}};
 $('#saveP').onclick=()=>saveP(false);$('#saveAs').onclick=()=>saveP(true);$('#loadP').onclick=()=>{fileMode='proj';fileIn.accept='.json';fileIn.click()};
 $('#impG').onclick=()=>{fileMode='geo';fileIn.accept='';fileIn.click()};
@@ -752,9 +753,12 @@ const netTiles=()=>{const a=NET.SN,T=[];for(let j=0;a.s+j*a.dy<a.n;j++)for(let i
 async function netDb(mode,fn){const d=await idb(),t=d.transaction('net',mode),r=fn(t.objectStore('net'));return new Promise((ok,no)=>{t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)})}
 async function netLoad(){const d=await idb(),st=d.transaction('net').objectStore('net'),k=st.getAllKeys(),v=st.getAll();await new Promise(ok=>{v.onsuccess=ok;v.onerror=ok});NET.mem.clear();(k.result||[]).forEach((x,i)=>NET.mem.set(x,v.result[i]));netInfo();netDraw()}
 function netInfo(){let kb=0,n=0,tk=0,tn=0,tc=0;NET.mem.forEach((t,k)=>{if(k[0]==='s'){kb+=t.kb||0;n++}else{tk+=t.kb||0;tn++;tc+=t.f.length}});NET.n=NET.mem.size;$('#netInfo').textContent=(n?`Gewässer: ${n} von ${netTiles().length} Kacheln (${(kb/1024).toFixed(1)} MB)`:'Gewässer: noch nichts geladen.')+(tn?` · Bäume: ${tn} von ${trTiles().length} Kacheln, ${tc.toLocaleString('de')} Bäume (${(tk/1024).toFixed(1)} MB)`:'')}
-function netDraw(){NET.lay.clearLayers();trDraw();if(!NET.on||!NET.mem.size)return;const z=map.getZoom(),b=map.getBounds().pad(.1),bb=[b.getSouth(),b.getWest(),b.getNorth(),b.getEast()],seen=new Set(),ST={river:['#4fc3f7',3],canal:['#26c6da',2.5],stream:['#81d4fa',1.5]};
+function netDraw(){NET.lay.clearLayers();trDraw();if(!NET.on||!NET.mem.size)return;const z=map.getZoom(),b=map.getBounds().pad(.1),bb=[b.getSouth(),b.getWest(),b.getNorth(),b.getEast()],seen=new Set(),ar=0,ST={river:['#4fc3f7',3],canal:['#26c6da',2.5],stream:['#81d4fa',1.5]};
  NET.mem.forEach((t,tk)=>{if(tk[0]!=='s')return;for(const f of t.f){if(seen.has(f[0]))continue;const k=f[4];if(k[2]<bb[0]||k[0]>bb[2]||k[3]<bb[1]||k[1]>bb[3])continue;if(f[1]==='stream'&&z<12)continue;seen.add(f[0]);
-  const c=ST[f[1]]||ST.stream,l=L.polyline(f[3].map(p=>[p[1],p[0]]),{renderer:NET.cv,color:c[0],weight:c[1],opacity:.85});if(f[2])l.bindTooltip(f[2]);l.addTo(NET.lay)}})}
+  const c=ST[f[1]]||ST.stream,l=L.polyline(f[3].map(p=>[p[1],p[0]]),{renderer:NET.cv,color:c[0],weight:c[1],opacity:.85});if(f[2])l.bindTooltip(f[2]);l.addTo(NET.lay);if(z>=13&&f[1]!=='canal'&&ar<800)ar+=netArrow(f[3],z)}})}
+function netArrow(c,z){const i=Math.max(0,Math.min(c.length-2,Math.floor(c.length/2))),A=map.project([c[i][1],c[i][0]],z),B=map.project([c[i+1][1],c[i+1][0]],z),dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy);if(len<10)return 0;
+ const ux=dx/len,uy=dy/len,mx=(A.x+B.x)/2,my=(A.y+B.y)/2,S=7,P=pt=>map.unproject(pt,z);
+ L.polygon([P(L.point(mx+ux*S,my+uy*S)),P(L.point(mx-ux*S-uy*S*.6,my-uy*S+ux*S*.6)),P(L.point(mx-ux*S+uy*S*.6,my-uy*S-ux*S*.6))],{renderer:NET.cv,color:'#01579b',weight:1,fillColor:'#e1f5fe',fillOpacity:1,interactive:false}).addTo(NET.lay);return 1}
 async function netGet(){if(NET.busy){NET.stop=true;return}
  const full=$('#netStr').checked,T=netTiles().filter(t=>!NET.mem.has(t.k)||(full&&!NET.mem.get(t.k).str));
  if(!T.length)return msg('Alle Kacheln für diese Auswahl sind schon geladen.');
@@ -793,6 +797,19 @@ async function trGet(){if(NET.busy){NET.stop=true;return}
  catch(e){msg('Abbruch: '+e.message+' – geladene Kacheln bleiben erhalten.',true)}
  finally{NET.busy=false;$('#trGet').textContent='🌳 Bäume Sachsen laden (OSM)'}}
 $('#trGet').onclick=trGet;netInfo();
+/* ---------- Pegel (Etappe 2a): aktuelle Werte W/Q der WSV (PEGELONLINE), gefiltert auf Sachsen. Live, nicht gespeichert ---------- */
+const PG={lay:L.layerGroup().addTo(map),n:0};
+async function pgGet(){msg('Lade Pegel (WSV) …');
+ try{const r=await fetch('https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json?includeTimeseries=true&includeCurrentMeasurement=true');if(!r.ok)throw Error('HTTP '+r.status);
+  const d=await r.json(),a=NET.SN,E=x=>String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));PG.lay.clearLayers();PG.n=0;
+  d.filter(s=>s.latitude>=a.s&&s.latitude<=a.n&&s.longitude>=a.w&&s.longitude<=a.e).forEach(s=>{
+   const M={};(s.timeseries||[]).forEach(t=>{if(t.currentMeasurement)M[t.shortname]={u:t.unit,...t.currentMeasurement}});
+   const row=(k,n)=>{const m=M[k];return m?`${n}: <b>${E(m.value)} ${E(m.unit||m.u)}</b> ${m.trend>0?'↑ steigend':m.trend<0?'↓ fallend':m.trend===0?'→ gleich':''}<br><small>${E(new Date(m.timestamp).toLocaleString('de'))}</small><br>`:`${n}: –<br>`};
+   L.circleMarker([s.latitude,s.longitude],{renderer:NET.cv,radius:8,color:'#0d47a1',weight:2,fillColor:'#42a5f5',fillOpacity:.9}).bindPopup(`<b>${E(s.longname||s.shortname)}</b><br>${E(s.water&&s.water.longname||'')}${s.km!=null?' · km '+E(s.km):''}<br>${row('W','Wasserstand')}${row('Q','Abfluss')}`).addTo(PG.lay);PG.n++});
+  msg(PG.n?`${PG.n} Pegel in Sachsen geladen (Bundeswasserstraßen). Tippe auf einen Punkt.`:'Keine WSV-Pegel in Sachsen gefunden.',!PG.n)}
+ catch(e){msg('Pegel nicht ladbar: '+e.message+' (Internet oder Browser-Sperre?)',true)}}
+$('#pgGet').onclick=pgGet;
+
 
 
 const CLC={forest:'#2e6b3a',scrub:'#4f7f3a',grass:'#6fae5a',farmland:'#b9b16a',wetland:'#4f8f86',beach:'#e0cf8a',urban:'#8a8a94',tree:'#2e7d32',other:'#6b7f6b'},CATC={water:'water',waterway:'water',building:'build',road:'path',path:'path',rail:'path',harbor:'harbor'};
@@ -1101,6 +1118,7 @@ $('#depthEst').onclick=estimateDepth;
 /* ---------- Rechtliche Namensnennung (immer aus den tatsächlich genutzten Daten abgeleitet) ---------- */
 function attrLines(){const o=[],ls=all(),osm=!!(ENV.fc||ls.some(l=>{const p=l.feature.properties;return p.osm||/OpenStreetMap/.test(p.source||'')}));
  if(osm)o.push('Kartendaten © OpenStreetMap-Mitwirkende, Lizenz ODbL 1.0 (https://www.openstreetmap.org/copyright)');
+ if(PG.n)o.push('Pegeldaten: PEGELONLINE der Wasserstraßen- und Schifffahrtsverwaltung des Bundes (WSV)');
  if(NET.mem.size)o.push('Gewässernetz: OpenStreetMap-Mitwirkende, ODbL 1.0 (https://www.openstreetmap.org/copyright)');
  if(ls.some(l=>l.feature.properties.type==='boje'&&l.feature.properties.osm))o.push('Seezeichen: OpenSeaMap / OpenStreetMap-Mitwirkende, ODbL 1.0 (https://www.openseamap.org)');
  if(ls.some(l=>l.feature.properties.weather_source))o.push('Wetterdaten: Open-Meteo.com (https://open-meteo.com), CC BY 4.0');
