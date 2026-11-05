@@ -1,5 +1,5 @@
 // Umwelt-Log – Service Worker (Offline-Hülle). Cache-Version bei jeder Änderung der Dateien erhöhen.
-const V='umwelt-log-v14',SHELL=V+'-shell',TILES=V+'-tiles',TILE_MAX=600;
+const V='umwelt-log-v15',SHELL=V+'-shell',TILES=V+'-tiles',TILE_MAX=600;
 const LOCAL=['./','index.html','fauna.js','manifest.webmanifest','icon-192.png','icon-512.png','icon-maskable-512.png','apple-touch-icon.png'];
 const LIBS=['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css','https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
  'https://unpkg.com/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.css','https://unpkg.com/@geoman-io/leaflet-geoman-free@2.17.0/dist/leaflet-geoman.min.js',
