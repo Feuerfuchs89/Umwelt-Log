@@ -962,7 +962,7 @@ function obsFields(p,row,txt,l){if(!LISTED.has(p.type))return;
  const pk=(k,o)=>{const s=el('select');o.forEach(([v,n])=>s.append(el('option',{value:v,textContent:n,selected:(p[k]||'')===v})));s.onchange=()=>{p[k]=s.value;commit()};return s},
   num=k=>txt(k,'number',{step:'any',inputMode:'decimal'});
  if(p.type==='messung'&&Array.isArray(p.profile)&&p.profile.length){const tb=el('button',{className:'v pri',textContent:`📈 Tiefenprofil anzeigen (${p.profile.length} Pkt. bis ${String(p.profile_max_m).replace('.',',')} m)`});tb.onclick=()=>tpShow(p.id);row('Tiefenprofil',tb)}
- if(p.type==='messung'){row('Wassertemp. (°C)',num('water_temp_c'));row('Sichttiefe Secchi (m)',num('secchi_m'));row('Secchi-Gerät',pk('secchi_disk',SDISK));row('',el('span',{className:'ro',textContent:SHINT}));row('pH',num('ph'));row('Merkmal',pk('merkmal',MERK))}
+ if(p.type==='messung'){row('Wassertemp. (°C)',num('water_temp_c'));row('Lufttemp. gemessen (°C)',num('air_temp_meas_c'));if(p.air_temp_meas_src)row('',el('span',{className:'ro',textContent:'Luft: '+p.air_temp_meas_src+(p.air_temp_meas_at?' · '+new Date(p.air_temp_meas_at).toLocaleString('de',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'')}));row('Sichttiefe Secchi (m)',num('secchi_m'));row('Secchi-Gerät',pk('secchi_disk',SDISK));row('',el('span',{className:'ro',textContent:SHINT}));row('pH',num('ph'));row('Merkmal',pk('merkmal',MERK))}
  else if(p.type==='sichtung'){faunaFields(p,row,txt,l)}
  else if(p.type==='baum'){const si=txt('species');si.setAttribute('list','spList');const o0=si.onchange;si.onchange=()=>{o0();if(!p.taxon&&TAXA[p.species]){p.taxon=TAXA[p.species];commit()}};row('Art (deutsch)',si);row('Botanisch',txt('taxon'));row('Stammumfang 1,3 m (cm)',num('circumference_cm'));row('Krone Ø (m)',num('crown_m'));row('Zustand',pk('zustand',ZUST));row('Pflanzjahr',num('start_year'));row('Standort',pk('standort',STAND));
   const same=all().filter(x=>x.feature.properties.type==='baum'&&p.species&&x.feature.properties.species===p.species);
@@ -1019,7 +1019,7 @@ function capture(type){
  navigator.geolocation.getCurrentPosition(q=>mk(L.latLng(q.coords.latitude,q.coords.longitude),q.coords.accuracy),()=>{mk(map.getCenter(),null);msg('Kein GPS – Punkt in der Kartenmitte gesetzt, bitte verschieben.',true)},{enableHighAccuracy:true,timeout:15000,maximumAge:5000})}
 const csvCell=v=>{v=v==null?'':String(v);return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
 function obsCsv(type){const ls=all().filter(l=>l.feature.properties.type===type);if(!ls.length)return msg('Keine Punkte vom Typ „'+T[type].l+'“ vorhanden.',true);
- const cols=type==='sichtung'?['name','observed_at','group','species','taxon','cat','stage','count','abundance','habitat','behavior','method','determination','sap','sample_id','station','air_temp_c','wind_ms','wind_dir_deg','cloud_pct','precip_mm','weather_time','notes','uid']:type==='messung'?['name','station','observed_at','water_temp_c','secchi_m','secchi_disk','ph','merkmal','profile_n','profile_max_m','air_temp_c','wind_ms','wind_dir_deg','cloud_pct','precip_mm','weather_time','notes']:type==='wasserpflanze'?['name','observed_at','species','taxon','zone','cover_pct','depth_m','method','height','notes']:type==='strauch'?['name','observed_at','species','taxon','height','crown_m','zustand','standort','notes']:['name','observed_at','species','taxon','circumference_cm','height','crown_m','zustand','start_year','standort','notes'],
+ const cols=type==='sichtung'?['name','observed_at','group','species','taxon','cat','stage','count','abundance','habitat','behavior','method','determination','sap','sample_id','station','air_temp_c','wind_ms','wind_dir_deg','cloud_pct','precip_mm','weather_time','notes','uid']:type==='messung'?['name','station','observed_at','water_temp_c','secchi_m','secchi_disk','ph','merkmal','profile_n','profile_max_m','air_temp_meas_c','air_temp_meas_at','air_temp_meas_src','air_temp_c','wind_ms','wind_dir_deg','cloud_pct','precip_mm','weather_time','notes']:type==='wasserpflanze'?['name','observed_at','species','taxon','zone','cover_pct','depth_m','method','height','notes']:type==='strauch'?['name','observed_at','species','taxon','height','crown_m','zustand','standort','notes']:['name','observed_at','species','taxon','circumference_cm','height','crown_m','zustand','start_year','standort','notes'],
   out=[['lat','lon','accuracy_m',...cols].join(';')];
  ls.forEach(l=>{const p=l.feature.properties,ll=l.getLatLng();out.push([ll.lat.toFixed(6),ll.lng.toFixed(6),p.accuracy_m!=null?Math.round(p.accuracy_m):'',...cols.map(c=>Array.isArray(p[c])?p[c].join('|'):p[c])].map(csvCell).join(';'))});
  dl(slug(PROJ.name)+'-'+type+'.csv','\ufeff'+out.join('\r\n'),'text/csv');msg(ls.length+' Zeile(n) exportiert (CSV, Trennzeichen „;“, UTF-8, WGS84).')}
@@ -1044,6 +1044,7 @@ $('#xDwc').onclick=dwcCsv;
 const STP=[['water_temp_c','Wassertemperatur','Wassertemperatur am Messpunkt (Feldmessung)','Grad Celsius','Cel','°C','Wassertemperatur-Messung (Feld)',0],
  ['secchi_m','Secchi-Tiefe','Sichttiefe mit Secchi-Scheibe','Meter','m','m','Secchi-Scheibe',0],
  ['ph','pH-Wert','pH-Wert des Wassers (Feldmessung)','pH-Einheit','[pH]','pH','pH-Messung (Feld)',0],
+ ['air_temp_meas_c','Lufttemperatur (gemessen)','Lufttemperatur an der Messstelle, Feldmessung mit DS18B20 im Schatten','Grad Celsius','Cel','°C','Wasserthermometer DS18B20 (Luft)',0],
  ['air_temp_c','Lufttemperatur (Modell)','Lufttemperatur 2 m, Open-Meteo-Modellwert, keine Messung am See','Grad Celsius','Cel','°C','Open-Meteo Modell',1],
  ['wind_ms','Windgeschwindigkeit (Modell)','Wind 10 m, Open-Meteo-Modellwert, keine Messung am See','Meter pro Sekunde','m/s','m/s','Open-Meteo Modell',1],
  ['wind_dir_deg','Windrichtung (Modell)','Windrichtung 10 m, Open-Meteo-Modellwert, keine Messung am See','Grad','deg','°','Open-Meteo Modell',1],
@@ -1232,8 +1233,8 @@ $('#dclose').onclick=()=>pick(null);
 $('#sideToggle').onclick=()=>$('#side').classList.toggle('collapsed');
 
 const escH=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function pinIcon(p,c,s){const g=p.type==='sichtung'?((FG[p.group]||{}).ic||'🐾'):p.type==='messung'?(Array.isArray(p.profile)&&p.profile.length?'📈':'💧'):p.type==='baum'?'🌳':p.type==='strauch'?'🌿':p.type==='wasserpflanze'?(ZG[p.zone]||'🌾'):'⚓';let lab='';
- if(p.type==='messung'&&p.water_temp_c!=null&&p.water_temp_c!=='')lab=String(p.water_temp_c).replace('.',',')+' °C';else if(p.type==='messstelle')lab=p.name||'';else if(p.type==='sichtung')lab=s?(p.species||''):(+p.count>1?'×'+p.count:'');else if((p.type==='baum'||p.type==='strauch'||p.type==='wasserpflanze')&&s)lab=p.species||'';
+function pinIcon(p,c,s){const g=p.type==='sichtung'?((FG[p.group]||{}).ic||'🐾'):p.type==='messung'?(Array.isArray(p.profile)&&p.profile.length?'📈':(p.water_temp_c==null||p.water_temp_c==='')&&p.air_temp_meas_c!=null&&p.air_temp_meas_c!==''?'🌤':'💧'):p.type==='baum'?'🌳':p.type==='strauch'?'🌿':p.type==='wasserpflanze'?(ZG[p.zone]||'🌾'):'⚓';let lab='';
+ if(p.type==='messung'&&p.water_temp_c!=null&&p.water_temp_c!=='')lab=String(p.water_temp_c).replace('.',',')+' °C';else if(p.type==='messung'&&p.air_temp_meas_c!=null&&p.air_temp_meas_c!=='')lab='Luft '+String(p.air_temp_meas_c).replace('.',',')+' °C';else if(p.type==='messstelle')lab=p.name||'';else if(p.type==='sichtung')lab=s?(p.species||''):(+p.count>1?'×'+p.count:'');else if((p.type==='baum'||p.type==='strauch'||p.type==='wasserpflanze')&&s)lab=p.species||'';
  return L.divIcon({className:'',iconSize:[36,46],iconAnchor:[18,44],html:`<div class="pin ${p.type}${s?' sel':''}" style="--c:${c}"><svg viewBox="0 0 36 46" width="36" height="46"><path d="M18 2C9.7 2 3 8.6 3 16.8 3 27.5 18 44 18 44s15-16.5 15-27.2C33 8.6 26.3 2 18 2z"/><circle cx="18" cy="17" r="10" fill="#fff"/></svg><span class="pg">${g}</span>${lab?`<span class="pl">${escH(lab)}</span>`:''}</div>`})}
 function obsName(type){let n=all().filter(x=>x.feature.properties.type===type).length+1;const used=new Set(all().map(x=>x.feature.properties.name));while(used.has(T[type].l+' '+n))n++;return T[type].l+' '+n}
 function focusObs(l){if(l.getBounds)map.fitBounds(l.getBounds().pad(.3),{maxZoom:19,animate:false});else map.setView(l.getLatLng(),Math.max(map.getZoom(),17),{animate:false});pick(l)}
@@ -1402,7 +1403,7 @@ function obsListUI(){const box=$('#mlist');if(!box)return;box.replaceChildren();
    else pb.append(el('div',{className:'s',textContent:'Keine Messpunkte mit '+d.l+' in diesem Zeitraum.'}))}
   box.append(pb)}
  if(ms.length){head('Messpunkte',ms.length);ms.forEach(l=>{const p=l.feature.properties;
-  box.append(card(l,p.name||'(ohne Name)',`${dt(p.observed_at)}${p.station?' · '+p.station:''}`+(Array.isArray(p.profile)&&p.profile.length?` · 📈 Profil ${p.profile.length} Pkt. bis ${f(p.profile_max_m)} m${p.profile_open?' (läuft)':''}`:` · Secchi ${f(p.secchi_m)} m · pH ${f(p.ph)}`),p.water_temp_c!=null&&p.water_temp_c!==''?f(p.water_temp_c)+' °C':''))})}
+  box.append(card(l,p.name||'(ohne Name)',`${dt(p.observed_at)}${p.station?' · '+p.station:''}`+(Array.isArray(p.profile)&&p.profile.length?` · 📈 Profil ${p.profile.length} Pkt. bis ${f(p.profile_max_m)} m${p.profile_open?' (läuft)':''}`:` · Secchi ${f(p.secchi_m)} m · pH ${f(p.ph)}`)+(p.air_temp_meas_c!=null&&p.air_temp_meas_c!==''?` · 🌤 Luft ${f(p.air_temp_meas_c)} °C`:''),p.water_temp_c!=null&&p.water_temp_c!==''?f(p.water_temp_c)+' °C':''))})}
  if(sgA.length){const bx=el('div',{className:'card'}),re=()=>{lsSet('flt',FLT);obsListUI()};
   const gs=el('select');gs.append(el('option',{value:'',textContent:'Alle Artgruppen'}));Object.keys(FG).forEach(k=>gs.append(el('option',{value:k,textContent:FG[k].ic+' '+FG[k].s,selected:FLT.g===k})));gs.onchange=()=>{FLT.g=gs.value;re()};
   const d1=el('input',{type:'date',value:FLT.from}),d2=el('input',{type:'date',value:FLT.to});d1.onchange=()=>{FLT.from=d1.value;re()};d2.onchange=()=>{FLT.to=d2.value;re()};
@@ -1426,7 +1427,7 @@ function obsListUI(){const box=$('#mlist');if(!box)return;box.replaceChildren();
    Ein Profil ist ein Messpunkt (type messung) mit properties.profile=[{d,t,at,src,stable}] (d = Tiefe m, t = °C).
    water_temp_c = Wert der geringsten Tiefe. Gespeichert wie jeder Messpunkt (Autosave, Projektdatei, Undo). */
 const BT={dev:null,ch:null,want:false,state:'aus',t:null,at:0,h:[],retry:0};
-const TPS={view:'mess',st:lsGet('tp_st',null),d:'0.5',man:'',step:.5,prevD:null,show:null,iv:0,an:{st:'*',per:'monat',m:'',y:'',kind:'profile',deps:null,key:''}};
+const TPS={view:'mess',st:lsGet('tp_st',null),d:'0.5',man:'',airMan:'',step:.5,prevD:null,show:null,iv:0,an:{st:'*',per:'monat',m:'',y:'',kind:'profile',deps:null,key:''}};
 const f2=v=>v==null||!isFinite(v)?'–':(Math.round(v*100)/100).toLocaleString('de',{minimumFractionDigits:2,maximumFractionDigits:2});
 const f1d=v=>v==null||!isFinite(v)?'–':(Math.round(v*100)/100).toLocaleString('de',{maximumFractionDigits:2});
 const pnum=v=>{const x=parseFloat(String(v??'').trim().replace(',','.'));return isFinite(x)?x:null};
@@ -1525,8 +1526,8 @@ function dlBlob(name,b){const a=el('a',{href:URL.createObjectURL(b),download:nam
 function tpPng(spec,name){const c=document.createElement('canvas');tpDraw(c,spec,{light:true,export:true,w:1600,h:1000});c.toBlob(b=>{if(b){dlBlob(name+'.png',b);msg('Diagramm als Bild gespeichert.')}else msg('Bild konnte nicht erzeugt werden.',true)},'image/png')}
 const cN=v=>v==null||v===''?'':String(v).replace('.',',');
 function tpCsv(ls,name){if(!ls.length)return msg('Keine Tiefenprofile für den Export.',true);
- const out=[['datum','uhrzeit','messstelle','tiefe_m','temperatur_c','wert_quelle','stabil','lat','lon','profil_name','profil_id'].join(';')];
- ls.forEach(l=>{const p=l.feature.properties,ll=l.getLatLng();p.profile.forEach(q=>out.push([dKey(q.at||p.observed_at),new Date(q.at||p.observed_at).toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit'}),p.station||'',cN(q.d),cN(q.t),q.src==='hand'?'von Hand':'Sensor',q.stable==null?'':q.stable?'ja':'nein',cN(ll.lat.toFixed(6)),cN(ll.lng.toFixed(6)),p.name||'',p.id].map(csvCell).join(';')))});
+ const out=[['datum','uhrzeit','messstelle','tiefe_m','temperatur_c','wert_quelle','stabil','lat','lon','luft_gemessen_c','profil_name','profil_id'].join(';')];
+ ls.forEach(l=>{const p=l.feature.properties,ll=l.getLatLng();p.profile.forEach(q=>out.push([dKey(q.at||p.observed_at),new Date(q.at||p.observed_at).toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit'}),p.station||'',cN(q.d),cN(q.t),q.src==='hand'?'von Hand':'Sensor',q.stable==null?'':q.stable?'ja':'nein',cN(ll.lat.toFixed(6)),cN(ll.lng.toFixed(6)),cN(p.air_temp_meas_c),p.name||'',p.id].map(csvCell).join(';')))});
  dl(name+'.csv','﻿'+out.join('\r\n'),'text/csv');msg((out.length-1)+' Messwert(e) exportiert (CSV mit „;“ und Dezimalkomma, für Excel).')}
 const tip1=(p,q)=>`${dTxt(q.at||p.observed_at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}\n${f1d(q.d)} m · ${f2(q.t)} °C${q.src==='hand'?' (von Hand)':q.stable===false?' (nicht stabil)':''}`;
 function tpSpecOne(l){const p=l.feature.properties;return{kind:'profile',title:'Tiefenprofil Wassertemperatur'+(p.station?' · '+p.station:''),sub:dTxt(p.observed_at,{weekday:'long',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})+' · '+p.profile.length+' Messpunkte bis '+f1d(p.profile_max_m)+' m',
@@ -1546,12 +1547,24 @@ function tpShow(id){TPS.show=id;tpOpen('mess')}
 function tpLiveUI(){const t=$('#tpT'),s=$('#tpSt'),b=$('#tpSave');if(!t)return;const v=tpLive(),st=tpStable();
  t.innerHTML=v==null?'–,–– <small>°C</small>':f2(v)+' <small>°C</small>';
  s.innerHTML=BT.state==='ok'?(v==null?'<i>● verbunden · warte auf Messwert …</i>':st?'<b>● verbunden · Wert stabil</b>':'<i>● verbunden · Wert ändert sich noch …</i>'):BT.state==='verbinde'?'<i>● verbinde …</i>':'○ Sensor nicht verbunden';
+ const ab=$('#tpAir');if(ab){const am=pnum(TPS.airMan),tv=am!=null?am:v;ab.textContent=tv==null?'🌤 Lufttemperatur speichern':`🌤 ${f2(tv)} °C als Lufttemperatur speichern`+(am==null&&v!=null&&!st?' (noch nicht stabil)':'');ab.classList.toggle('pri',tv!=null&&!$('#tpSave'))}
  if(b){const man=pnum(TPS.man),d=pnum(TPS.d),tv=man!=null?man:v;b.textContent=tv==null?'💾 Wert speichern':`💾 ${f2(tv)} °C bei ${d==null?'?':f1d(d)} m speichern`+(man==null&&v!=null&&!st?' (noch nicht stabil)':'');b.classList.toggle('pri',tv!=null);}}
 function tpStart(){const st=tpStations().find(x=>x.feature.properties.name===TPS.st);
  const mk=(ll,acc,src)=>{const now=new Date(),l=adopt(L.marker(ll),{type:'messung',name:'Tiefenprofil · '+(st?st.feature.properties.name+' · ':'')+now.toLocaleDateString('de'),station:st?st.feature.properties.name:'',source:src,estimated:!st&&acc==null,observed_at:now.toISOString(),accuracy_m:acc,profile:[],profile_open:true,profile_device:'Wasserthermometer (Pico W + DS18B20)'});
   Object.assign(TPS,{d:'0.5',man:'',step:.5,prevD:null,show:null});commit();wxFetch(l,true);tpWakeOn();tpRender();msg('Messung gestartet. Sensor auf die erste Tiefe, warten bis „stabil“, dann speichern.')};
  if(st)return mk(st.getLatLng(),st.feature.properties.accuracy_m??null,'Tiefenprofil an Messstelle '+st.feature.properties.name);
  msg('Suche GPS …');gps((ll,acc)=>mk(ll,acc,'Tiefenprofil (GPS-Position)'),()=>{mk(map.getCenter(),null,'Tiefenprofil (Kartenmitte, kein GPS)');msg('Kein GPS – Punkt in der Kartenmitte gesetzt, später verschieben.',true)})}
+function tpAirSet(p,v){p.air_temp_meas_c=Math.round(v.t*100)/100;p.air_temp_meas_at=new Date().toISOString();p.air_temp_meas_src=v.src==='hand'?'von Hand':'Wasserthermometer DS18B20'+(v.stable===false?' (Wert noch nicht stabil)':'')}
+function tpAirSave(){const am=pnum(TPS.airMan),live=tpLive(),v=am!=null?{t:am,src:'hand'}:live!=null?{t:live,src:'sensor',stable:tpStable()}:null;
+ if(!v)return msg('Keine Temperatur: Sensor verbinden oder Wert von Hand eintragen.',true);if(v.t<-40||v.t>50)return msg('Lufttemperatur '+f2(v.t)+' °C ist unplausibel – bitte prüfen.',true);
+ const act=tpActive();
+ if(act){const p=act.feature.properties;if(p.air_temp_meas_c!=null&&!confirm(`Für diese Messung ist schon ${f2(p.air_temp_meas_c)} °C Luft gespeichert. Ersetzen?`))return;tpAirSet(p,v);TPS.airMan='';commit();tpRender();return msg(`Lufttemperatur ${f2(p.air_temp_meas_c)} °C zur Messung gespeichert.`)}
+ const st=tpStations().find(x=>x.feature.properties.name===TPS.st),nm=st?st.feature.properties.name:'';
+ const mk=(ll,acc,src)=>{const now=new Date(),p={type:'messung',name:'Lufttemperatur · '+(nm?nm+' · ':'')+now.toLocaleDateString('de'),station:nm,source:src,observed_at:now.toISOString(),accuracy_m:acc,estimated:!st&&acc==null};tpAirSet(p,v);
+  const l=adopt(L.marker(ll),p);TPS.airMan='';commit();wxFetch(l,true);tpRender();msg(`Lufttemperatur ${f2(p.air_temp_meas_c)} °C gespeichert${nm?' an „'+nm+'“':''}.`)};
+ if(st)return mk(st.getLatLng(),st.feature.properties.accuracy_m??null,'Lufttemperatur an Messstelle '+nm);
+ msg('Suche GPS …');gps((ll,acc)=>mk(ll,acc,'Lufttemperatur (GPS-Position)'),()=>{mk(map.getCenter(),null,'Lufttemperatur (Kartenmitte, kein GPS)');msg('Kein GPS – Punkt in der Kartenmitte gesetzt, später verschieben.',true)})}
+const AIRHINT='Sensor trocken abwischen und im Schatten etwa 1,5 m über dem Boden frei hängen lassen, nicht in der Hand halten. In der Luft dauert es 3–5 Minuten, bis der Wert stabil ist.';
 function tpSave(){const l=tpActive();if(!l)return;const p=l.feature.properties,d=pnum(TPS.d);
  if(d==null||d<0||d>300)return msg('Bitte eine gültige Tiefe in Metern eintragen.',true);
  const man=pnum(TPS.man),live=tpLive(),t=man!=null?man:live;
@@ -1590,14 +1603,15 @@ function tpRenderMess(sh){const act=tpActive();
   c.append(el('label',{className:'f'},'Tiefe (m)',el('div',{style:'display:flex;gap:6px'},btn('−','',()=>pm(-TPS.step),{ariaLabel:'Tiefe verringern',style:'width:52px;font-size:22px'}),di,btn('＋','',()=>pm(TPS.step),{ariaLabel:'Tiefe erhöhen',style:'width:52px;font-size:22px'}))),
    el('label',{className:'f'},'Temp. von Hand (°C)',mi),
    el('div',{className:'row'},btn('💾 Wert speichern','pri big',tpSave,{id:'tpSave'})),
-   el('div',{className:'dim',style:'margin-top:4px',textContent:'Sensor bis zur Marke absenken, warten bis „stabil“ steht, dann speichern. Die nächste Tiefe wird vorgeschlagen; Tiefe und Abstand kannst du jederzeit ändern.'}));
+   el('div',{className:'row'},btn(p.air_temp_meas_c!=null?`🌤 Luft: ${f2(p.air_temp_meas_c)} °C gespeichert – neu messen`:'🌤 Lufttemperatur speichern','',tpAirSave,{id:p.air_temp_meas_c!=null?'':'tpAir'})),
+   el('div',{className:'dim',style:'margin-top:4px',textContent:'Lufttemperatur am besten vor dem ersten Absenken messen. Sensor bis zur Marke absenken, warten bis „stabil“ steht, dann speichern. Die nächste Tiefe wird vorgeschlagen; Tiefe und Abstand kannst du jederzeit ändern.'}));
   sh.append(c);
   const cc=el('div',{className:'tpc'},el('div',{className:'lbl',textContent:'Temperatur je Tiefe'}),tpCanvas(tpSpecOne(act)));if(p.profile.length)cc.append(tpPtsTable(p,true));sh.append(cc);
   sh.append(el('div',{className:'ff'},btn('■ Messung beenden','warn',tpEnd),btn('Ausblenden','',tpClose)));return}
  const shown=TPS.show&&tpById(TPS.show);
  if(shown&&shown.feature.properties.profile&&shown.feature.properties.profile.length){const p=shown.feature.properties,spec=tpSpecOne(shown),nm='tiefenprofil-'+slug(p.station||'gps')+'-'+dKey(p.observed_at);
   const c=el('div',{className:'tpc'},el('div',{style:'font-weight:600'},(p.station||'ohne Messstelle')+' · '+dTxt(p.observed_at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})),
-   el('div',{className:'dim',textContent:`${p.profile.length} Messpunkte · ${f1d(p.profile[0].d)}–${f1d(p.profile_max_m)} m · ${f2(p.profile_min_c)} bis ${f2(p.profile_max_c)} °C`+(p.weather_source?` · Luft ${f1d(p.air_temp_c)} °C, Wind ${f1d(p.wind_ms)} m/s (Modell)`:'')}),tpCanvas(spec),
+   el('div',{className:'dim',textContent:`${p.profile.length} Messpunkte · ${f1d(p.profile[0].d)}–${f1d(p.profile_max_m)} m · ${f2(p.profile_min_c)} bis ${f2(p.profile_max_c)} °C`+(p.air_temp_meas_c!=null?` · Luft gemessen ${f2(p.air_temp_meas_c)} °C`:'')+(p.weather_source?` · Modell: Luft ${f1d(p.air_temp_c)} °C, Wind ${f1d(p.wind_ms)} m/s`:'')}),tpCanvas(spec),
    el('div',{className:'row'},btn('Diagramm PNG ⤓','pri',()=>tpPng(spec,nm)),btn('Daten CSV ⤓','',()=>tpCsv([shown],nm)),btn('Auf Karte','',()=>{tpClose();focusObs(shown)})),tpPtsTable(p,true));
   sh.append(c);sh.append(el('div',{className:'ff'},btn('＋ Neue Messung','pri',()=>{TPS.show=null;tpRender()}),btn('📊 Auswertung','',()=>{TPS.view='ana';tpRender()})));return}
  // Start
@@ -1609,6 +1623,11 @@ function tpRenderMess(sh){const act=tpActive();
  c.append(el('label',{className:'f'},'Messstelle',ss));
  if(!sts.length)c.append(el('div',{className:'dim',textContent:'Tipp: Für Messreihen am selben Ort zuerst eine feste Messstelle anlegen (Tab Messpunkte → „Feste Messstelle anlegen“). Dann lassen sich die Tage vergleichen.'}));
  c.append(el('div',{className:'row'},btn('▶ Messung starten','pri big',tpStart)));sh.append(c);
+ const ai=el('input',{type:'text',inputMode:'decimal',value:String(TPS.airMan).replace('.',','),placeholder:'leer = Wert vom Sensor',ariaLabel:'Lufttemperatur von Hand'});ai.oninput=()=>{TPS.airMan=ai.value;tpLiveUI()};
+ const ac=el('div',{className:'tpc'},el('div',{style:'font-weight:600',textContent:'🌤 Nur Lufttemperatur messen'}),el('div',{className:'dim',textContent:AIRHINT}),el('label',{className:'f'},'Temp. von Hand (°C)',ai),el('div',{className:'row'},btn('🌤 Lufttemperatur speichern','big',tpAirSave,{id:'tpAir'})));
+ const lastAir=all().filter(l=>{const q=l.feature.properties;return q.type==='messung'&&q.air_temp_meas_c!=null&&(q.station||'')===TPS.st}).sort((a,b)=>String(b.feature.properties.air_temp_meas_at||b.feature.properties.observed_at).localeCompare(String(a.feature.properties.air_temp_meas_at||a.feature.properties.observed_at))).slice(0,5);
+ if(lastAir.length){const tb=el('table');tb.append(el('tr',{},el('th',{textContent:'Zuletzt hier'}),el('th',{textContent:'Luft'}),el('th',{textContent:'Modell'})));lastAir.forEach(l=>{const q=l.feature.properties;tb.append(el('tr',{},el('td',{textContent:dTxt(q.air_temp_meas_at||q.observed_at,{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}),el('td',{textContent:f2(q.air_temp_meas_c)+' °C'+(q.air_temp_meas_src==='von Hand'?' ✍':'')}),el('td',{textContent:q.air_temp_c!=null&&q.air_temp_c!==''?f1d(q.air_temp_c)+' °C':'–'})))});ac.append(tb)}
+ sh.append(ac);
  const last=tpDone().filter(l=>(l.feature.properties.station||'')===TPS.st).reverse().slice(0,6);
  if(last.length){sh.append(el('div',{className:'lbl',style:'margin-top:10px',textContent:'Letzte Profile hier'}));last.forEach(l=>{const p=l.feature.properties,cd=el('div',{className:'card',role:'button',tabIndex:0},el('div',{className:'t'},el('span',{textContent:dTxt(p.observed_at,{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}),el('span',{className:'v2',textContent:f2(p.water_temp_c)+' °C'})),el('div',{className:'s',textContent:`${p.profile.length} Punkte bis ${f1d(p.profile_max_m)} m · tiefster Wert ${f2(p.profile[p.profile.length-1].t)} °C`}));cd.onclick=()=>tpShow(p.id);sh.append(cd)})}}
 function tpRenderAna(sh){const A=TPS.an,ALL=tpDone();
