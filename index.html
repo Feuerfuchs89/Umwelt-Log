@@ -98,6 +98,9 @@ button.big2{flex:1;padding:11px 8px;font-size:14px;border-radius:10px}
 #fab button{border:0;border-radius:28px;font:700 14px var(--f-body);cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.5);padding:0 16px;height:42px;background:#fff;color:#14202a}
 #fabMore{display:none;flex-direction:column;gap:8px;align-items:inherit}#fab.open #fabMore{display:flex}
 #fab button.main{height:56px;font-size:17px;background:#ff7a1a;color:#fff;padding:0 24px}
+#stBar{position:fixed;z-index:1050;top:64px;left:12px;max-width:calc(100% - 400px);display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}#stBar::-webkit-scrollbar{display:none}
+#stBar button{flex:none;border:0;border-radius:20px;height:38px;padding:0 14px;font:700 13px var(--f-body);background:#ffd600;color:#14202a;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:pointer;white-space:nowrap}#stBar button small{font-weight:600;opacity:.75;margin-left:4px}
+body.hasmsg #stBar,body.measuring #stBar{display:none}
 #doneBtn{position:fixed;z-index:1100;top:64px;left:50%;transform:translateX(-50%);border-radius:24px;padding:10px 22px;font-size:15px;box-shadow:0 3px 10px rgba(0,0,0,.5)}
 .leaflet-right .leaflet-control{margin-right:366px}
 @media(max-width:900px){#side{width:300px}.bar{max-width:calc(100% - 340px)}.leaflet-right .leaflet-control{margin-right:316px}}
@@ -107,7 +110,7 @@ button.big2{flex:1;padding:11px 8px;font-size:14px;border-radius:10px}
  #side,#side.collapsed{top:auto;left:8px;right:8px;bottom:8px;width:auto}#sbody{max-height:58vh}#msg::before{content:none!important}
  #fab{left:auto;right:12px;bottom:82px;align-items:flex-end}#side:not(.collapsed)~#fab{display:none}
  #status{display:none;left:8px;right:8px;top:58px;bottom:auto;white-space:normal;font-size:12px}body.hasmsg #status,body.measuring #status{display:block}#coord{display:none}
- #doneBtn{top:auto;bottom:76px}.leaflet-control-zoom{display:none}.leaflet-bottom.leaflet-left{bottom:68px}#prof{bottom:70px}
+ #stBar{top:58px;left:8px;right:8px;max-width:none}#doneBtn{top:auto;bottom:76px}.leaflet-control-zoom{display:none}.leaflet-bottom.leaflet-left{bottom:68px}#prof{bottom:70px}
  .leaflet-right .leaflet-control{margin-right:10px}
 }
 [hidden]{display:none!important}
@@ -130,6 +133,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}dialog h3{margin:0 0 6px;font:800 20
  <button class="v" id="newTop" title="Neues Projekt anlegen">＋ Neu</button>
 </div>
 <button class="v pri" id="doneBtn" hidden>✓ Fertig</button>
+<div id="stBar" hidden aria-label="Meine Messstellen"></div>
 <aside class="panel" id="side" data-tab="m">
  <nav id="tabs" role="tablist" aria-label="Bereiche">
   <button role="tab" data-tab="m" aria-selected="true"><b>💧</b>Messpunkte</button>
@@ -341,7 +345,8 @@ const gk=l=>l instanceof L.Marker?'Point':l instanceof L.Polygon?'Polygon':'Line
 /* ---------- Objekte ---------- */
 const sel=new Set();let mode='select',pending='steg',counter=0;
 function paint(l){const p=l.feature.properties,t=T[p.type],c=safeColor(p.color)||(p.type==='sichtung'&&FG[p.group]?FG[p.group].c:t.c),s=sel.has(l);
- if(l instanceof L.Marker&&OBS.has(p.type)){l.setIcon(pinIcon(p,c,s));l.setZIndexOffset(s?3000:1000)}else if(l instanceof L.Marker&&p.type==='boje'){const z=Math.round(26*(+p.size||1));l.setIcon(L.divIcon({className:'',iconSize:[z,z],iconAnchor:[z/2,z/2],html:shapeSVG(p.shape,c,s,z)}))}else if(l instanceof L.Marker)l.setIcon(L.divIcon({className:'',iconSize:[18,18],iconAnchor:[9,9],html:`<div class="mk ${p.type}${s?' sel':''}" style="--c:${c}"></div>`}));
+ if(l instanceof L.Marker&&p.type==='messung'&&p.station&&!s&&hasStation(p.station)){l.setIcon(L.divIcon({className:'',iconSize:[1,1],iconAnchor:[0,0],html:''}));l.setZIndexOffset(-1000)}   /* Messung an fester Messstelle: kein eigener Pin, Wert steht am Stellen-Pin */
+ else if(l instanceof L.Marker&&OBS.has(p.type)){l.setIcon(pinIcon(p,c,s));l.setZIndexOffset(s?3000:1000)}else if(l instanceof L.Marker&&p.type==='boje'){const z=Math.round(26*(+p.size||1));l.setIcon(L.divIcon({className:'',iconSize:[z,z],iconAnchor:[z/2,z/2],html:shapeSVG(p.shape,c,s,z)}))}else if(l instanceof L.Marker)l.setIcon(L.divIcon({className:'',iconSize:[18,18],iconAnchor:[9,9],html:`<div class="mk ${p.type}${s?' sel':''}" style="--c:${c}"></div>`}));
  else l.setStyle({color:s?'#fff':c,weight:(t.w||3)+(s?2:0),dashArray:t.d||null,fillColor:c,fillOpacity:gk(l)==='Polygon'?(t.fo||.3):0})}
 function adopt(l,props){const g=gk(l);const p={name:'',type:'sonstig',source:'manuell',estimated:false,...props};
  if(!T[p.type]||(T[p.type].g!=='Any'&&T[p.type].g!==g))p.type='sonstig';
@@ -364,7 +369,7 @@ function syncOutlines(){const ls=all();
   let o=all().find(x=>x.feature.properties.outlineOf===p.id);
   if(o){o.setLatLngs(co);Object.assign(o.feature.properties,{name:nm,estimated:p.estimated})}
   else adopt(L.polyline(co),{type:'ufer',name:nm,outlineOf:p.id,estimated:p.estimated,source:'abgeleitet aus Fläche (automatisch)'})})}
-function commit(){syncOutlines();autosave();const s=ser();if(s===hist[hi]){ui();return}hist=hist.slice(0,hi+1);hist.push(s);if(hist.length>100)hist.shift();hi=hist.length-1;ui()}
+function commit(){syncOutlines();all().forEach(l=>{const q=l.feature.properties;if(q.type==='messstelle'||(q.type==='messung'&&q.station))paint(l)});autosave();const s=ser();if(s===hist[hi]){ui();return}hist=hist.slice(0,hi+1);hist.push(s);if(hist.length>100)hist.shift();hi=hist.length-1;ui()}
 function restore(s){all().forEach(drop);sel.clear();addFC(JSON.parse(s));setMode(mode);ui()}
 const undo=()=>{if(hi>0)restore(hist[--hi])},redo=()=>{if(hi<hist.length-1)restore(hist[++hi])};
 
@@ -403,7 +408,7 @@ addEventListener('keydown',e=>{const tg=e.target.tagName;if(/INPUT|TEXTAREA|SELE
 /* ---------- Oberfläche: Liste & Eigenschaften ---------- */
 function scaleBy(l,f){const pts=rings(l.getLatLngs()).flat().map(fwd),cx=pts.reduce((s,p)=>s+p[0],0)/pts.length,cy=pts.reduce((s,p)=>s+p[1],0)/pts.length;
  const m=a=>Array.isArray(a)?a.map(m):(q=>inv([cx+(q[0]-cx)*f,cy+(q[1]-cy)*f]))(fwd(a));l.setLatLngs(m(l.getLatLngs()))}
-function ui(){try{stoUpdate(false)}catch(_){}try{tpOnUI()}catch(_){}attrShow();all().filter(l=>OBS.has(l.feature.properties.type)).forEach(paint);obsListUI();$('#undo').disabled=hi<=0;$('#redo').disabled=hi>=hist.length-1;
+function ui(){try{stoUpdate(false)}catch(_){}try{stBarUI()}catch(_){}try{tpOnUI()}catch(_){}attrShow();all().filter(l=>OBS.has(l.feature.properties.type)).forEach(paint);obsListUI();$('#undo').disabled=hi<=0;$('#redo').disabled=hi>=hist.length-1;
  const ls=all().filter(l=>!LISTED.has(l.feature.properties.type));$('#cnt').textContent=`(${ls.length})`;const box=$('#list');box.replaceChildren();
  ls.sort((a,b)=>a.feature.properties.type.localeCompare(b.feature.properties.type)).forEach(l=>{const p=l.feature.properties;
   const b=el('button',{className:'v it'+(sel.has(l)?' on':'')},p.name||'(ohne Name)',el('small',{},` · ${T[p.type].l}${p.group?' ⛓':''}${p.demo?' · DEMO':''}`));
@@ -484,8 +489,8 @@ async function saveP(as){const name=slug(PROJ.name)+'.json';let h=null;
  if(withPh&&refs){try{d.photos=await photoMap()}catch(e){msg('Fotos nicht lesbar – Projekt wird ohne Fotos gespeichert',true)}}
  d.counts.photoRefs=refs;d.counts.photos=d.photos?Object.keys(d.photos).length:0;
  const txt=JSON.stringify(d),mb=(txt.length/1e6).toFixed(1)+' MB',note=refs?` · ${d.counts.photos}/${refs} Fotos`:'';
- if(h){try{const w=await h.createWritable();await w.write(txt);await w.close();return msg('Projekt gespeichert ('+mb+note+')')}catch(e){msg('Schreiben fehlgeschlagen, lade herunter …',true)}}
- dl(name,txt,'application/json');msg('Projekt gespeichert ('+mb+note+')')}
+ if(h){try{const w=await h.createWritable();await w.write(txt);await w.close();lsSet('last_backup',Date.now());return msg('Projekt gespeichert ('+mb+note+')')}catch(e){msg('Schreiben fehlgeschlagen, lade herunter …',true)}}
+ dl(name,txt,'application/json');lsSet('last_backup',Date.now());msg('Projekt gespeichert ('+mb+note+')')}
 function validateProject(d){if(!d||typeof d!=='object'||d.format!=='seeeditor-1')throw Error('Kein Projekt dieses Editors');
  if(d.schema>SCHEMA)throw Error('Datei stammt aus einer neueren App-Version (Schema '+d.schema+'). Bitte App aktualisieren.');
  if(d.features&&(d.features.type!=='FeatureCollection'||!Array.isArray(d.features.features)))throw Error('Objekte (features) sind keine gültige FeatureCollection');
@@ -1018,7 +1023,7 @@ function stationMeasure(l){const p=l.feature.properties,m=adopt(L.marker(l.getLa
  setMode('select');pick(m);commit();wxFetch(m,true);msg('Messung an „'+p.name+'“ angelegt. Werte eintragen.')}
 $('#stSet').onclick=()=>stationSet(false);$('#stMap').onclick=()=>stationSet(true);
 function capture(type){
- const mk=(ll,acc)=>{const l=adopt(L.marker(ll),{type,name:obsName(type),source:'Vor-Ort-Erfassung',estimated:false,observed_at:new Date().toISOString(),accuracy_m:acc});
+ const mk=(ll0,acc)=>{let ll=ll0;if(type==='messung'){const s0=all().find(x=>x.feature.properties.type==='messstelle'&&map.distance(x.getLatLng(),ll0)<=30);if(s0)ll=s0.getLatLng()}const l=adopt(L.marker(ll),{type,name:obsName(type),source:'Vor-Ort-Erfassung',estimated:false,observed_at:new Date().toISOString(),accuracy_m:acc});
   setMode('select');pick(l);commit();map.setView(ll,Math.max(map.getZoom(),18));if(type==='messung'){const st=all().filter(x=>x.feature.properties.type==='messstelle'&&map.distance(x.getLatLng(),ll)<=30)[0];if(st){l.feature.properties.station=st.feature.properties.name;commit()}wxFetch(l,true)}msg(T[type].l+' gesetzt'+(acc!=null?' (± '+Math.round(acc)+' m)':'')+'. Werte im Objekt-Panel eintragen.')};
  if(!navigator.geolocation)return mk(map.getCenter(),null);
  msg('Suche GPS …');
@@ -1227,7 +1232,7 @@ function lake(){const c=fwd(L.latLng(51.26944,12.33528)),a=1500,b=925,r=-10*Math
  map.fitBounds(l.getBounds().pad(.25),{animate:false})}
 /* ---------- Umwelt-Log: Tabs, Messpunkt-Liste, Pins, Schnellzugriff ---------- */
 const MODETXT={draw:'✓ Fertig gezeichnet',edit:'✓ Fertig',move:'✓ Fertig',rotate:'✓ Fertig',remove:'✓ Fertig',measure:'✓ Messen beenden',pickwater:'✕ Abbrechen',place:'✕ Abbrechen'};
-function modeUI(m){const d=$('#doneBtn');d.hidden=m==='select';d.textContent=MODETXT[m]||'✓ Fertig';$('#fab').hidden=m!=='select';document.body.classList.toggle('measuring',m==='measure');
+function modeUI(m){try{stBarUI()}catch(_){}const d=$('#doneBtn');d.hidden=m==='select';d.textContent=MODETXT[m]||'✓ Fertig';$('#fab').hidden=m!=='select';document.body.classList.toggle('measuring',m==='measure');
  if(m!=='select'&&innerWidth<=760)$('#side').classList.add('collapsed')}
 $('#doneBtn').onclick=()=>dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));
 function setTab(t,open){document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
@@ -1240,12 +1245,26 @@ $('#sideToggle').onclick=()=>$('#side').classList.toggle('collapsed');
 
 const escH=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function pinIcon(p,c,s){const g=p.type==='sichtung'?((FG[p.group]||{}).ic||'🐾'):p.type==='messung'?(Array.isArray(p.profile)&&p.profile.length?'📈':(p.water_temp_c==null||p.water_temp_c==='')&&p.air_temp_meas_c!=null&&p.air_temp_meas_c!==''?'🌤':'💧'):p.type==='baum'?'🌳':p.type==='strauch'?'🌿':p.type==='wasserpflanze'?(ZG[p.zone]||'🌾'):'⚓';let lab='';
- if(p.type==='messung'&&p.water_temp_c!=null&&p.water_temp_c!=='')lab=String(p.water_temp_c).replace('.',',')+' °C';else if(p.type==='messung'&&p.air_temp_meas_c!=null&&p.air_temp_meas_c!=='')lab='Luft '+String(p.air_temp_meas_c).replace('.',',')+' °C';else if(p.type==='messstelle')lab=p.name||'';else if(p.type==='sichtung')lab=s?(p.species||''):(+p.count>1?'×'+p.count:'');else if((p.type==='baum'||p.type==='strauch'||p.type==='wasserpflanze')&&s)lab=p.species||'';
+ if(p.type==='messung'&&p.water_temp_c!=null&&p.water_temp_c!=='')lab=String(p.water_temp_c).replace('.',',')+' °C';else if(p.type==='messung'&&p.air_temp_meas_c!=null&&p.air_temp_meas_c!=='')lab='Luft '+String(p.air_temp_meas_c).replace('.',',')+' °C';else if(p.type==='messstelle'){const v=lastStationLab(p.name);lab=(p.name||'')+(v?' · '+v:'')}else if(p.type==='sichtung')lab=s?(p.species||''):(+p.count>1?'×'+p.count:'');else if((p.type==='baum'||p.type==='strauch'||p.type==='wasserpflanze')&&s)lab=p.species||'';
  return L.divIcon({className:'',iconSize:[36,46],iconAnchor:[18,44],html:`<div class="pin ${p.type}${s?' sel':''}" style="--c:${c}"><svg viewBox="0 0 36 46" width="36" height="46"><path d="M18 2C9.7 2 3 8.6 3 16.8 3 27.5 18 44 18 44s15-16.5 15-27.2C33 8.6 26.3 2 18 2z"/><circle cx="18" cy="17" r="10" fill="#fff"/></svg><span class="pg">${g}</span>${lab?`<span class="pl">${escH(lab)}</span>`:''}</div>`})}
+const hasStation=nm=>all().some(x=>x.feature.properties.type==='messstelle'&&x.feature.properties.name===nm);
+function lastStationLab(nm){const m=all().map(x=>x.feature.properties).filter(q=>q.type==='messung'&&q.station===nm&&q.water_temp_c!=null&&q.water_temp_c!=='').sort((a,b)=>String(b.observed_at).localeCompare(String(a.observed_at)))[0];return m?String(m.water_temp_c).replace('.',',')+' °C':''}
+let LASTLL=null;
+function posUpdate(){if(!navigator.geolocation||document.hidden)return;navigator.geolocation.getCurrentPosition(q=>{LASTLL=L.latLng(q.coords.latitude,q.coords.longitude);try{stBarUI()}catch(_){}},()=>{},{enableHighAccuracy:false,timeout:8000,maximumAge:60000})}
+const stDist=l=>LASTLL?map.distance(l.getLatLng(),LASTLL):null;
+function nearStation(m=50){let b=null,bd=m;all().forEach(l=>{if(l.feature.properties.type!=='messstelle')return;const d=stDist(l);if(d!=null&&d<=bd){bd=d;b=l}});return b}
+function stBarUI(){const b=$('#stBar');if(!b)return;const sts=all().filter(x=>x.feature.properties.type==='messstelle');
+ if(!sts.length||mode!=='select'||($('#tp')&&!$('#tp').hidden)){b.hidden=true;return}
+ const last=nm=>{const o=all().map(x=>x.feature.properties).filter(q=>q.type==='messung'&&q.station===nm).map(q=>String(q.observed_at)).sort().pop();return o||''},near=nearStation(),nn=l=>String(l.feature.properties.name||'');
+ sts.sort((a,c)=>(LASTLL?stDist(a)-stDist(c):0)||last(nn(c)).localeCompare(last(nn(a)))||nn(a).localeCompare(nn(c),'de'));
+ b.replaceChildren(...sts.map(l=>{const p=l.feature.properties,v=lastStationLab(p.name),lt=last(p.name),days=lt?Math.floor((Date.now()-new Date(lt))/864e5):null,x=el('button',{type:'button',title:'Messstelle öffnen'}),isN=near===l;
+  x.append((isN?'📍 ':'🟡 ')+(p.name||'Messstelle'));if(isN)x.style.outline='3px solid #fff';
+  const info=[v,days==null?'neu':days>=7?'⏰ '+days+' T.':''].filter(Boolean).join(' · ');if(info)x.append(el('small',{textContent:info}));
+  x.onclick=()=>{TPS.sd=p.name;tpOpen('st')};return x}));b.hidden=false}
 function obsName(type){let n=all().filter(x=>x.feature.properties.type===type).length+1;const used=new Set(all().map(x=>x.feature.properties.name));while(used.has(T[type].l+' '+n))n++;return T[type].l+' '+n}
 function focusObs(l){if(l.getBounds)map.fitBounds(l.getBounds().pad(.3),{maxZoom:19,animate:false});else map.setView(l.getLatLng(),Math.max(map.getZoom(),17),{animate:false});pick(l)}
 function moveObs(l){if(!l.dragging)return;l.dragging.enable();msg('Ziehe den Punkt an die richtige Stelle.');l.once('dragend',()=>{l.dragging.disable();commit()})}
-function makeObs(type,ll,acc,src){const l=adopt(L.marker(ll),{type,name:obsName(type),source:src,estimated:false,observed_at:new Date().toISOString(),accuracy_m:acc});
+function makeObs(type,ll0,acc,src){let ll=ll0;if(type==='messung'){const s0=all().find(x=>x.feature.properties.type==='messstelle'&&map.distance(x.getLatLng(),ll0)<=30);if(s0)ll=s0.getLatLng()}const l=adopt(L.marker(ll),{type,name:obsName(type),source:src,estimated:false,observed_at:new Date().toISOString(),accuracy_m:acc});
  if(type==='messung'){const st=all().filter(x=>x.feature.properties.type==='messstelle'&&map.distance(x.getLatLng(),ll)<=30)[0];if(st)l.feature.properties.station=st.feature.properties.name;wxFetch(l,true)}
  setMode('select');pick(l);commit();msg(T[type].l+' gesetzt. Werte eintragen, dann „Fertig“.')}
 $('#capP').onclick=$('#fabP').onclick=()=>{setMode('place');msg('Tippe auf die Karte, wo der Messpunkt liegen soll.')};
@@ -1546,9 +1565,9 @@ function tpSpecTime(ls,deps,title,sub){return{kind:'time',seq:'depth',title,sub,
 
 /* --- Bedienung --- */
 function tpOnUI(){const sh=$('#tp');if(sh&&!sh.hidden&&!sh.contains(document.activeElement))tpRender()}
-function tpOpen(view,st){if(mode!=='select')setMode('select');if(view)TPS.view=view;if(st!=null){TPS.st=st;lsSet('tp_st',st)}if(view==='mess'&&!tpActive())TPS.show=null;
- $('#tp').hidden=false;$('#tp').scrollTop=0;tpRender();clearInterval(TPS.iv);TPS.iv=setInterval(tpLiveUI,1000);if(tpActive())tpWakeOn();if(innerWidth<=760)$('#side').classList.add('collapsed')}
-function tpClose(){$('#tp').hidden=true;clearInterval(TPS.iv)}
+function tpOpen(view,st){if(mode!=='select')setMode('select');if(view)TPS.view=view;if(st!=null){TPS.st=st;lsSet('tp_st',st)}else if(view==='mess'&&!tpActive()){const n=nearStation();if(n){TPS.st=n.feature.properties.name;lsSet('tp_st',TPS.st)}}if(view==='mess'&&!tpActive())TPS.show=null;
+ $('#tp').hidden=false;try{stBarUI()}catch(_){}$('#tp').scrollTop=0;tpRender();clearInterval(TPS.iv);TPS.iv=setInterval(tpLiveUI,1000);if(tpActive())tpWakeOn();if(innerWidth<=760)$('#side').classList.add('collapsed')}
+function tpClose(){$('#tp').hidden=true;clearInterval(TPS.iv);try{stBarUI()}catch(_){}}
 function tpShow(id){TPS.show=id;tpOpen('mess')}
 function tpLiveUI(){const t=$('#tpT'),s=$('#tpSt'),b=$('#tpSave');if(!t)return;const v=tpLive(),st=tpStable();
  t.innerHTML=v==null?'–,–– <small>°C</small>':f2(v)+' <small>°C</small>';
@@ -1757,7 +1776,8 @@ $('#src').innerHTML+='<br><b>Startgewässer:</b> geschätzte Ellipse (Mittelpunk
 envInfo();attrShow();layerUI();tkSpUI();setMode('select');setName(PROJ.name);$('#dwcObs').value=lsGet('dwc_observer','');stoUpdate(true);
 (async()=>{const s=await autoload();let ok=false;
  if(s){try{applyProject(JSON.parse(s),true);ok=true}catch(e){all().forEach(drop)}}
- if(!ok&&!all().length)lake();commit();autoOn=true;if(ok)photoPrune();try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(_){}if(ok)msg('Letztes Projekt „'+PROJ.name+'“ wiederhergestellt')})();
+ if(!ok&&!all().length)lake();commit();autoOn=true;if(ok)photoPrune();try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(_){}if(ok)msg('Letztes Projekt „'+PROJ.name+'“ wiederhergestellt');posUpdate();setInterval(posUpdate,60000);
+ if(all().some(l=>OBS.has(l.feature.properties.type))){const lb=lsGet('last_backup',0),dd=lb?Math.floor((Date.now()-lb)/864e5):null;if(dd==null||dd>=7)setTimeout(()=>msg(dd==null?'💾 Noch nie als Datei gesichert – im Tab „Projekt“ „Projekt speichern“ tippen.':'💾 Letzte Sicherung vor '+dd+' Tagen – bitte „Projekt speichern“ tippen.',true),7000)}})();
 })();
 </script>
 <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
